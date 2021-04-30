@@ -1,0 +1,530 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Macula – Macula</title><link>/zh/</link><description>Recent content on Macula</description><generator>Hugo -- gohugo.io</generator><atom:link href="/zh/index.xml" rel="self" type="application/rss+xml"/><item><title>Blog: 2.7.5 功能解析</title><link>/zh/blog/2020/05/18/2.7.5-%E5%8A%9F%E8%83%BD%E8%A7%A3%E6%9E%90/</link><pubDate>Mon, 18 May 2020 00:00:00 +0000</pubDate><guid>/zh/blog/2020/05/18/2.7.5-%E5%8A%9F%E8%83%BD%E8%A7%A3%E6%9E%90/</guid><description>
+&lt;p>近日，备受瞩目的 Dubbo 2.7.5 版本正式发布，在 2.7.5 版本中，Dubbo 引入了很多新的特性、对现有的很多功能做了增强、同时在性能上也有了非常大的提升，这个版本无论对 Dubbo 社区亦或是开发者来说，都将是一个里程碑式的版本。&lt;/p>
+&lt;ul>
+&lt;li>应用粒度服务注册【beta】&lt;/li>
+&lt;li>HTTP/2 (gRPC) 协议支持&lt;/li>
+&lt;li>Protobuf 支持&lt;/li>
+&lt;li>性能优化，调用链路性能提升 30%&lt;/li>
+&lt;li>支持 TLS 安全传输链路&lt;/li>
+&lt;li>优化的消费端线程模型&lt;/li>
+&lt;li>新增更适应多集群部署场景的负载均衡策略&lt;/li>
+&lt;li>全新的应用开发 API （兼容老版本应用）【beta】&lt;/li>
+&lt;li>其他一些功能增强与 bugfix&lt;/li>
+&lt;/ul>
+&lt;p>首先，从服务发现上，新版本突破以往基于接口粒度的模型，引入了全新的基于应用粒度的服务发现机制 - 服务自省，虽然该机制当前仍处于 beta 阶段，但对于 Dubbo 向整个微服务云原生体系靠齐，都打下了非常好的基础；得益于紧凑的协议设计和代码实现上的优化，Dubbo 一直以来都具有较好的性能表现，在 2.7.5 版本中，性能上有了进一步的提升，根据来自官方维护团队的压测，新版本在调用链路上性能提升达到 30%；云原生微服务时代，多语言需求变得越来越普遍，协议的通用性和穿透性对于构建打通前后端的整套微服务体系也变得非常关键，Dubbo 通过实现 gRPC 协议实现了对 HTTP/2 协议的支持，同时增加了与 Protobuf 的结合。&lt;/p>
+&lt;h2 id="1--应用粒度服务注册beta">1. 应用粒度服务注册【beta】&lt;/h2>
+&lt;p>从 Java 实现版本的角度来说，Dubbo 是一个面向接口代理的服务开发框架，服务定义、服务发布以及服务引用都是基于接口，服务治理层面包括服务发现、各种规则定义也都是基于接口定义的，基于接口可以说是 Dubbo 的一大优势，比如向开发者屏蔽了远程调用细节、治理粒度更精细等。但基于接口的服务定义同时也存在一些问题，如服务，与业界通用的微服务体系等。&lt;/p>
+&lt;p>&lt;img src="/imgs/blog/servicediscovery-old.png" alt="servicediscovery-old.png">&lt;/p>
+&lt;p>针对以上问题，2.7.5 版本引入了一种新的服务定义/治理机制：&lt;strong>服务自省&lt;/strong>，简单来说这是一种基于应用粒度的服务治理方案。一个实例只向注册中心注册一条记录，彻底解决服务推送性能瓶颈，同时由于这样的模型与主流微服务体系如 SpringCloud、K8S 等天然是对等的，因此为 Dubbo 解决和此类异构体系间的互联互通清除了障碍。有兴趣进一步了解 Dubbo 服务自省机制如何解决异构微服务体系互联互通问题的，可具体参考我们之前的文章解析《Dubbo 如何成为联通异构微服务体系的最佳服务开发框架》。&lt;/p>
+&lt;p>以下是服务自省机制的基本工作原理图。&lt;/p>
+&lt;p>&lt;img src="/imgs/blog/servicediscovery-new.png" alt="servicediscovery-new.png">&lt;/p>
+&lt;p>要了解更多关于服务自省工作原理的细节，请参与官方文档及后续文章。&lt;/p>
+&lt;p>服务自省与当前已有的机制之间可以说是互补的关系，Dubbo 框架会继续保持接口粒度的服务治理的优势，实现接口和应用两个粒度互为补充的局面，兼顾性能、灵活性和通用性，力争使 Dubbo 成为微服务开发的最佳框架。&lt;/p>
+&lt;h2 id="2-http2-grpc-协议支持">2. HTTP/2 (gRPC) 协议支持&lt;/h2>
+&lt;p>Dubbo RPC 协议是构建在 TCP 之上，这有很多优势也有一些缺点，缺点比如通用性、协议穿透性不强，对多语言实现不够友好等。HTTP/2 由于其标准 HTTP 协议的属性，无疑将具有更好的通用性，现在或将来在各层网络设备上肯定都会得到很好的支持，gRPC 之所以选在 HTTP/2 作为传输层载体很大程度上也是因为这个因素。当前 gRPC 在云原生、Mesh 等体系下的认可度和采用度逐步提升，俨然有成为 RPC 协议传输标准的趋势，Dubbo 和 gRPC 在协议层面是对等竞争的，但是在框架实现上却各有侧重，Dubbo 无疑有更丰富的服务开发和治理体验 。&lt;/p>
+&lt;p>Dubbo 支持 gRPC 协议带来的直观好处有：&lt;/p>
+&lt;ul>
+&lt;li>正式支持基于 HTTP/2 的远程通信，在协议通用性和穿透性上进一步提升。&lt;/li>
+&lt;li>支持跨进程的 Stream 流式通信，支持 Reactive 风格的 RPC 编程。&lt;/li>
+&lt;li>解决了 gRPC 框架难以直接用于微服务开发的问题，将其纳入 Dubbo 的服务治理体系。&lt;/li>
+&lt;li>为联通组织内部已有的 gRPC 或多语言体系提供支持。&lt;/li>
+&lt;/ul>
+&lt;p>2.7.5 版本开始，gRPC (HTTP/2) 成为 Dubbo 协议体系中的一等公民，对于有需求的开发者完全可以在 Dubbo 开发的微服务体系中启用 gRPC 协议，而不必束缚在 Dubbo 协议自身上，关于这点我们在《Dubbo 如何成为联通异构微服务体系的最佳服务开发框架》一文中也有类似的观点表述。&lt;/p>
+&lt;p>关于 Dubbo 中如何开发 grpc (HTTP/2) 服务的细节，请参考文章《Dubbo 在跨语言与协议穿透性等方面的探索》，关于如何开启 TLS 和使用 Reactive RPC 编程，请参见示例。另外，Dubbo 的 go 版本目前同样也提供了对 gRPC 协议对等的支持，具体请关注 dubbogo 社区的发版计划。&lt;/p>
+&lt;h2 id="3-protobuf-支持">3. Protobuf 支持&lt;/h2>
+&lt;p>支持 Protobuf 更多的是从解决 Dubbo 跨语言易用性的角度考虑的。&lt;/p>
+&lt;p>跨语言的服务开发涉及到多个方面，从服务定义、RPC 协议到序列化协议都要做到语言中立，同时还针对每种语言有对应的 SDK 实现。虽然得益于社区的贡献，现在 Dubbo 在多语言 SDK 实现上逐步有了起色，已经提供了包括 Java, Go, PHP, C#, Python, NodeJs, C 等版本的客户端或全量实现版本，但在以上提到的跨语言友好性方面，以上三点还是有很多可改进之处。&lt;/p>
+&lt;p>协议上 2.7.5 版本支持了 gRPC，而关于服务定义与序列化，Protobuf 则提供了很好的解决方案。&lt;/p>
+&lt;ul>
+&lt;li>服务定义。当前 Dubbo 的服务定义和具体的编程语言绑定，没有提供一种语言中立的服务描述格式，比如 Java 就是定义 Interface 接口，到了其他语言又得重新以另外的格式定义一遍。因此 Dubbo 通过支持 Protobuf 实现了语言中立的服务定义。&lt;/li>
+&lt;li>序列化。Dubbo 当前支持的序列化包括 Json、Hessian2、Kryo、FST、Java 等，而这其中支持跨语言的只有 Json、Hessian2，通用的 Json 有固有的性能问题，而 Hessian2 无论在效率还是多语言 SDK 方面都有所欠缺。为此，Dubbo 通过支持 Protobuf 序列化来提供更高效、易用的跨语言序列化方案。&lt;/li>
+&lt;/ul>
+&lt;p>日后，不论我们使用什么语言版本来开发 Dubbo 服务，都可以直接使用 IDL 定义如下服务，具体请参见示例&lt;/p>
+&lt;pre>&lt;code class="language-idl" data-lang="idl">syntax = &amp;quot;proto3&amp;quot;;
+option java_multiple_files = true;
+option java_package = &amp;quot;org.apache.dubbo.demo&amp;quot;;
+option java_outer_classname = &amp;quot;DemoServiceProto&amp;quot;;
+option objc_class_prefix = &amp;quot;DEMOSRV&amp;quot;;
+package demoservice;
+// The demo service definition.
+service DemoService {
+rpc SayHello (HelloRequest) returns (HelloReply) {}
+}
+// The request message containing the user's name.
+message HelloRequest {
+string name = 1;
+}
+// The response message containing the greetings
+message HelloReply {
+string message = 1;
+}
+&lt;/code>&lt;/pre>&lt;h2 id="4-性能优化">4. 性能优化&lt;/h2>
+&lt;h3 id="41-调用链路优化">4.1 调用链路优化&lt;/h3>
+&lt;p>2.7.5 版本对整个调用链路做了全面的优化，根据压测结果显示，总体 QPS 性能提升将近 30%，同时也减少了调用过程中的内存分配开销。其中一个值得提及的设计点是 2.7.5 引入了 Servicerepository 的概念，在服务注册阶段提前生成 ServiceDescriptor 和 MethodDescriptor，以减少 RPC 调用阶段计算 Service 元信息带来的资源消耗。&lt;/p>
+&lt;h3 id="42-消费端线程池模型优化">4.2 消费端线程池模型优化&lt;/h3>
+&lt;p>对 2.7.5 版本之前的 Dubbo 应用，尤其是一些消费端应用，当面临需要消费大量服务且并发数比较大的大流量场景时（典型如网关类场景），经常会出现消费端线程数分配过多的问题，具体问题讨论可参见以下 issue ：&lt;/p>
+&lt;p>&lt;a href="https://github.com/apache/dubbo/issues/2013">https://github.com/apache/dubbo/issues/2013&lt;/a>&lt;/p>
+&lt;p>改进后的消费端线程池模型，通过复用业务端被阻塞的线程，很好的解决了这个问题。&lt;/p>
+&lt;p>&lt;strong>老的线程池模型&lt;/strong>&lt;/p>
+&lt;p>&lt;img src="/imgs/blog/consumer-threadpool0.png" alt="消费端线程池.png">&lt;/p>
+&lt;p>我们重点关注 Consumer 部分：&lt;/p>
+&lt;ol>
+&lt;li>业务线程发出请求，拿到一个 Future 实例。&lt;/li>
+&lt;li>业务线程紧接着调用 future.get 阻塞等待业务结果返回。&lt;/li>
+&lt;li>当业务数据返回后，交由独立的 Consumer 端线程池进行反序列化等处理，并调用 future.set 将反序列化后的业务结果置回。&lt;/li>
+&lt;li>业务线程拿到结果直接返回&lt;/li>
+&lt;/ol>
+&lt;p>&lt;strong>2.7.5 版本引入的线程池模型&lt;/strong>&lt;/p>
+&lt;p>&lt;img src="/imgs/blog/consumer-threadpool1.png" alt="消费端线程池新.png">&lt;/p>
+&lt;ol>
+&lt;li>业务线程发出请求，拿到一个 Future 实例。&lt;/li>
+&lt;li>在调用 future.get() 之前，先调用 ThreadlessExecutor.wait()，wait 会使业务线程在一个阻塞队列上等待，直到队列中被加入元素。&lt;/li>
+&lt;li>当业务数据返回后，生成一个 Runnable Task 并放入 ThreadlessExecutor 队列&lt;/li>
+&lt;li>业务线程将 Task 取出并在本线程中执行：反序列化业务数据并 set 到 Future。&lt;/li>
+&lt;li>业务线程拿到结果直接返回&lt;/li>
+&lt;/ol>
+&lt;p>这样，相比于老的线程池模型，由业务线程自己负责监测并解析返回结果，免去了额外的消费端线程池开销。&lt;/p>
+&lt;p>关于性能优化，在接下来的版本中将会持续推进，主要从以下两个方面入手：&lt;/p>
+&lt;ol>
+&lt;li>RPC 调用链路。目前能看到的点包括：进一步减少执行链路的内存分配、在保证协议兼容性的前提下提高协议传输效率、提高 Filter、Router 等计算效率。&lt;/li>
+&lt;li>服务治理链路。进一步减少地址推送、服务治理规则推送等造成的内存、cpu 资源消耗。&lt;/li>
+&lt;/ol>
+&lt;h2 id="5-tls-安全传输链路">5. TLS 安全传输链路&lt;/h2>
+&lt;p>2.7.5 版本在传输链路的安全性上做了很多工作，对于内置的 Dubbo Netty Server 和新引入的 gRPC 协议都提供了基于 TLS 的安全链路传输机制。&lt;/p>
+&lt;p>TLS 的配置都有统一的入口，如下所示：&lt;/p>
+&lt;p>&lt;strong>Provider 端&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;pre style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-java" data-lang="java">&lt;span style="color:#000">SslConfig&lt;/span> &lt;span style="color:#000">sslConfig&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#204a87;font-weight:bold">new&lt;/span> &lt;span style="color:#000">SslConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">();&lt;/span>
+&lt;span style="color:#000">sslConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">setServerKeyCertChainPath&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;path to cert&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">);&lt;/span>
+&lt;span style="color:#000">sslConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">setServerPrivateKeyPath&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">args&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">[&lt;/span>&lt;span style="color:#000">1&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">]);&lt;/span>
+&lt;span style="color:#8f5902;font-style:italic">// 如果开启双向 cert 认证
+&lt;/span>&lt;span style="color:#8f5902;font-style:italic">&lt;/span>&lt;span style="color:#204a87;font-weight:bold">if&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">mutualTls&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">)&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">{&lt;/span>
+&lt;span style="color:#000">sslConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">setServerTrustCertCollectionPath&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">args&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">[&lt;/span>&lt;span style="color:#000">2&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">]);&lt;/span>
+&lt;span style="color:#ce5c00;font-weight:bold">}&lt;/span>
+&lt;span style="color:#000">ProtocolConfig&lt;/span> &lt;span style="color:#000">protocolConfig&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#204a87;font-weight:bold">new&lt;/span> &lt;span style="color:#000">ProtocolConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;dubbo/grpc&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">);&lt;/span>
+&lt;span style="color:#000">protocolConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">setSslEnabled&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#204a87;font-weight:bold">true&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">);&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>&lt;strong>Consumer 端&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;pre style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-java" data-lang="java">&lt;span style="color:#204a87;font-weight:bold">if&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">(!&lt;/span>&lt;span style="color:#000">mutualTls&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">)&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">{}&lt;/span>
+&lt;span style="color:#000">sslConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">setClientTrustCertCollectionPath&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">args&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">[&lt;/span>&lt;span style="color:#000">0&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">]);&lt;/span>
+&lt;span style="color:#ce5c00;font-weight:bold">}&lt;/span> &lt;span style="color:#204a87;font-weight:bold">else&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">{&lt;/span>
+&lt;span style="color:#000">sslConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">setClientTrustCertCollectionPath&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">args&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">[&lt;/span>&lt;span style="color:#000">0&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">]);&lt;/span>
+&lt;span style="color:#000">sslConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">setClientKeyCertChainPath&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">args&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">[&lt;/span>&lt;span style="color:#000">1&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">]);&lt;/span>
+&lt;span style="color:#000">sslConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">setClientPrivateKeyPath&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">args&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">[&lt;/span>&lt;span style="color:#000">2&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">]);&lt;/span>
+&lt;span style="color:#ce5c00;font-weight:bold">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>为尽可能保证应用启动的灵活性，TLS Cert 的指定还能通过 -D 参数或环境变量等方式来在启动阶段根据部署环境动态指定，具体请参见 Dubbo 配置读取规则与 TLS 示例&lt;/p>
+&lt;p>Dubbo 配置读取规则：http://dubbo.apache.org/zh-cn/docs/user/configuration/configuration-load-process.html&lt;/p>
+&lt;p>TLS 示例：https://github.com/apache/dubbo-samples/tree/master/java/dubbo-samples-ssl&lt;/p>
+&lt;blockquote>
+&lt;p>如果要使用的是 gRPC 协议，在开启 TLS 时会使用到协议协商机制，因此必须使用支持 ALPN 机制的 Provider，推荐使用的是 netty-tcnative，具体可参见 gRPC Java 社区的总结： &lt;a href="https://github.com/grpc/grpc-java/blob/master/SECURITY.md">https://github.com/grpc/grpc-java/blob/master/SECURITY.md&lt;/a>&lt;/p>
+&lt;/blockquote>
+&lt;p>在服务调用的安全性上，Dubbo 在后续的版本中会持续投入，其中服务发现/调用的鉴权机制预计在接下来的版本中就会和大家见面。&lt;/p>
+&lt;h2 id="6-bootstrap-apibeta">6. Bootstrap API【beta】&lt;/h2>
+&lt;p>在上面讲《服务自省》时，我们提到了 Dubbo 面向接口的设计，面向接口编程、面向接口做服务发现和服务治理。在引入应用粒度服务发现的同时，2.7.5 版本对编程入口也做了优化，在兼容老版本 API 的同时，新增了新的面向应用的编程接口 - DubboBootstrap。&lt;/p>
+&lt;p>以面向 Dubbo API 编程为例，以前我们要这么写：&lt;/p>
+&lt;div class="highlight">&lt;pre style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-java" data-lang="java">&lt;span style="color:#000">ServiceConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">&amp;lt;&lt;/span>&lt;span style="color:#000">GreetingsService&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">&amp;gt;&lt;/span> &lt;span style="color:#000">service1&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#204a87;font-weight:bold">new&lt;/span> &lt;span style="color:#000">ServiceConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">&amp;lt;&amp;gt;();&lt;/span>
+&lt;span style="color:#000">service1&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">setApplication&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#204a87;font-weight:bold">new&lt;/span> &lt;span style="color:#000">ApplicationConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;first-dubbo-provider&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">));&lt;/span>
+&lt;span style="color:#000">service1&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">setRegistry&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#204a87;font-weight:bold">new&lt;/span> &lt;span style="color:#000">RegistryConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;zookeeper://&amp;#34;&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">+&lt;/span> &lt;span style="color:#000">zookeeperHost&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">+&lt;/span> &lt;span style="color:#4e9a06">&amp;#34;:2181&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">));&lt;/span>
+&lt;span style="color:#000">service1&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">export&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">();&lt;/span>
+&lt;span style="color:#000">ServiceConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">&amp;lt;&lt;/span>&lt;span style="color:#000">GreetingsService&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">&amp;gt;&lt;/span> &lt;span style="color:#000">service2&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#204a87;font-weight:bold">new&lt;/span> &lt;span style="color:#000">ServiceConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">&amp;lt;&amp;gt;();&lt;/span>
+&lt;span style="color:#000">service2&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">setApplication&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#204a87;font-weight:bold">new&lt;/span> &lt;span style="color:#000">ApplicationConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;first-dubbo-provider&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">));&lt;/span>
+&lt;span style="color:#000">service2&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">setRegistry&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#204a87;font-weight:bold">new&lt;/span> &lt;span style="color:#000">RegistryConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;zookeeper://&amp;#34;&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">+&lt;/span> &lt;span style="color:#000">zookeeperHost&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">+&lt;/span> &lt;span style="color:#4e9a06">&amp;#34;:2181&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">));&lt;/span>
+&lt;span style="color:#000">service2&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">export&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">();&lt;/span>
+&lt;span style="color:#ce5c00;font-weight:bold">......&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>ApplicationConfig、RegistryConfig、ProtocolConfig 等全局性的配置要在每个服务上去配置；并且从 Dubbo 框架的角度，由于缺少一个统一的 Server 入口，一些实例级别的配置如 ShutdownHook、ApplicationListener、应用级服务治理组件等都缺少一个加载驱动点。&lt;/p>
+&lt;p>在引入 DubboBootstrap 后，新的编程模型变得更简单，并且也为解决了缺少实例级启动入口的问题&lt;/p>
+&lt;div class="highlight">&lt;pre style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-java" data-lang="java">&lt;span style="color:#000">ProtocolConfig&lt;/span> &lt;span style="color:#000">protocolConfig&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#204a87;font-weight:bold">new&lt;/span> &lt;span style="color:#000">ProtocolConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;grpc&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">);&lt;/span>
+&lt;span style="color:#000">protocolConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">setSslEnabled&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#204a87;font-weight:bold">true&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">);&lt;/span>
+&lt;span style="color:#000">SslConfig&lt;/span> &lt;span style="color:#000">sslConfig&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#204a87;font-weight:bold">new&lt;/span> &lt;span style="color:#000">SslConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">();&lt;/span>
+&lt;span style="color:#000">sslConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">setXxxCert&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(...);&lt;/span>
+&lt;span style="color:#000">DubboBootstrap&lt;/span> &lt;span style="color:#000">bootstrap&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#000">DubboBootstrap&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">getInstance&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">();&lt;/span>
+&lt;span style="color:#000">bootstrap&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">application&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#204a87;font-weight:bold">new&lt;/span> &lt;span style="color:#000">ApplicationConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;ssl-provider&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">))&lt;/span>
+&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">registry&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#204a87;font-weight:bold">new&lt;/span> &lt;span style="color:#000">RegistryConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;zookeeper://127.0.0.1:2181&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">))&lt;/span>
+&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">protocol&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">protocolConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">)&lt;/span>
+&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">ssl&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">sslConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">);&lt;/span>
+&lt;span style="color:#000">ServiceConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">&amp;lt;&lt;/span>&lt;span style="color:#000">GreetingsService&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">&amp;gt;&lt;/span> &lt;span style="color:#000">service1&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#204a87;font-weight:bold">new&lt;/span> &lt;span style="color:#000">ServiceConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">&amp;lt;&amp;gt;();&lt;/span>
+&lt;span style="color:#000">ServiceConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">&amp;lt;&lt;/span>&lt;span style="color:#000">GreetingsService&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">&amp;gt;&lt;/span> &lt;span style="color:#000">service2&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#204a87;font-weight:bold">new&lt;/span> &lt;span style="color:#000">ServiceConfig&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">&amp;lt;&amp;gt;();&lt;/span>
+&lt;span style="color:#000">bootstrap&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">service&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">service1&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">).&lt;/span>&lt;span style="color:#c4a000">service&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">service2&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">);&lt;/span>
+&lt;span style="color:#000">bootstrap&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">start&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">();&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="7-多注册中心集群负载均衡">7. 多注册中心集群负载均衡&lt;/h2>
+&lt;p>对于多注册中心订阅的场景，选址时的多了一层注册中心集群间的负载均衡：&lt;/p>
+&lt;p>&lt;img src="/imgs/blog/cluster-lb.png" alt="cluster-lb.png">&lt;/p>
+&lt;p>在 Cluster Invoker 这一级，我们支持的选址策略有（2.7.5+ 版本，具体使用请参见文档）：&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>指定优先级&lt;/p>
+&lt;div class="highlight">&lt;pre style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-xml" data-lang="xml">&lt;span style="color:#8f5902;font-style:italic">&amp;lt;!-- 来自 preferred=“true” 注册中心的地址将被优先选择，只有该中心无可用地址时才 Fallback 到其他注册中心 --&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;dubbo:registry&lt;/span> &lt;span style="color:#c4a000">address=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;zookeeper://${zookeeper.address1}&amp;#34;&lt;/span> &lt;span style="color:#c4a000">preferred=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;true&amp;#34;&lt;/span> &lt;span style="color:#204a87;font-weight:bold">/&amp;gt;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>同 zone 优先&lt;/p>
+&lt;div class="highlight">&lt;pre style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-xml" data-lang="xml">&lt;span style="color:#8f5902;font-style:italic">&amp;lt;!-- 选址时会和流量中的 zone key 做匹配，流量会优先派发到相同 zone 的地址 --&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;dubbo:registry&lt;/span> &lt;span style="color:#c4a000">address=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;zookeeper://${zookeeper.address1}&amp;#34;&lt;/span> &lt;span style="color:#c4a000">zone=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;beijing&amp;#34;&lt;/span> &lt;span style="color:#204a87;font-weight:bold">/&amp;gt;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>权重轮询&lt;/p>
+&lt;div class="highlight">&lt;pre style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-xml" data-lang="xml">&lt;span style="color:#8f5902;font-style:italic">&amp;lt;!-- 来自北京和上海集群的地址，将以 10:1 的比例来分配流量 --&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;dubbo:registry&lt;/span> &lt;span style="color:#c4a000">id=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;beijing&amp;#34;&lt;/span> &lt;span style="color:#c4a000">address=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;zookeeper://${zookeeper.address1}&amp;#34;&lt;/span> &lt;span style="color:#c4a000">weight=&lt;/span>&lt;span style="color:#4e9a06">”100“&lt;/span> &lt;span style="color:#204a87;font-weight:bold">/&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;dubbo:registry&lt;/span> &lt;span style="color:#c4a000">id=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;shanghai&amp;#34;&lt;/span> &lt;span style="color:#c4a000">address=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;zookeeper://${zookeeper.address2}&amp;#34;&lt;/span> &lt;span style="color:#c4a000">weight=&lt;/span>&lt;span style="color:#4e9a06">”10“&lt;/span> &lt;span style="color:#204a87;font-weight:bold">/&amp;gt;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>默认，stick to 任意可用&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;blockquote>
+&lt;p>关于多注册中心订阅模型，Dubbo 同时也提供了 Multi-Registry 合并的解决思路，欢迎参与到以下 PR 的讨论中: &lt;a href="https://github.com/apache/dubbo/issues/5399">https://github.com/apache/dubbo/issues/5399&lt;/a>&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="8-其他功能增强">8. 其他功能增强&lt;/h2>
+&lt;ul>
+&lt;li>
+&lt;p>新增地址变更事件通知接口，方便业务侧感知地址变化&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>新增外围配置加载入口，方便开发者在启动阶段定制服务启动参数&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>config 模块重构&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>parameters 扩展配置增强&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>其他一些 Bugfix&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>从 Dubbo 框架自身的角度来说，2.7.5 版本也做了很多的重构与优化（比如说 config 模块的重构），这些改动对于使用者来说并无感知的，但是从优化整个 Dubbo 代码内部结构的角度来说，这些改动对后续的功能开发与新机制的引入是一个很好的铺垫。&lt;/p>
+&lt;h2 id="9-总结与展望">9. 总结与展望&lt;/h2>
+&lt;p>在后续的版本中，Dubbo 会持续快速的优化与迭代，主要从以下几个方面发力：&lt;/p>
+&lt;ul>
+&lt;li>继续探索服务自省成为 Dubbo 主推的服务治理模型。&lt;/li>
+&lt;li>对于企业用户关心的微服务解决方案场景，会持续推进框架的演进，包括当前正在开发的配置、服务鉴权机制、熔断等功能。后续还会尝试联合社区推动周边配套设施如网关、治理平台 Admin 等的建设，非常期待社区能踊跃参与到此部分的建设中。&lt;/li>
+&lt;li>性能优化上。主要从两个方面着手，一是调用链路的持续优化，同时继续探索新的更通用的 RPC 协议；另一方面是在服务治理推送机制上的优化，以进一步提高 Dubbo 在大规模服务地址推送场景下的表现。&lt;/li>
+&lt;li>云原生方向。接下来的版本将重点探索，1. 如何更好的支持 Dubbo 在 Kubernetes 上的部署和服务治理；2. 对于混合部署的场景，如传统 VM 和 K8S 体系混合部署、SDK Dubbo 与 Mesh 混合部署的场景，如何提供更好的支持以实现混部场景的长期共存或迁移。&lt;/li>
+&lt;/ul></description></item><item><title>Blog: 使用Pinpoint做分布式跟踪</title><link>/zh/blog/2018/07/12/%E4%BD%BF%E7%94%A8pinpoint%E5%81%9A%E5%88%86%E5%B8%83%E5%BC%8F%E8%B7%9F%E8%B8%AA/</link><pubDate>Thu, 12 Jul 2018 00:00:00 +0000</pubDate><guid>/zh/blog/2018/07/12/%E4%BD%BF%E7%94%A8pinpoint%E5%81%9A%E5%88%86%E5%B8%83%E5%BC%8F%E8%B7%9F%E8%B8%AA/</guid><description>
+&lt;p>在使用Dubbo进行服务化或者整合应用后，假设某个服务后台日志显示有异常，这个服务又被多个应用调用的情况下，我们通常很难判断是哪个应用调用的，问题的起因是什么，因此我们需要一套分布式跟踪系统来快速定位问题，Pinpoint可以帮助我们快速定位问题（当然，解决方案也不止这一种）。&lt;/p>
+&lt;h2 id="什么是pinpoint">什么是Pinpoint&lt;/h2>
+&lt;blockquote>
+&lt;p>摘自&lt;a href="https://skyao.gitbooks.io/learning-pinpoint/">Pinpoint学习笔记&lt;/a>&lt;/p>
+&lt;/blockquote>
+&lt;p>&lt;a href="https://github.com/naver/pinpoint">Pinpoint&lt;/a>是一个开源的 APM (Application Performance Management/应用性能管理)工具，用于基于java的大规模分布式系统。
+仿照Google Dapper，Pinpoint通过跟踪分布式应用之间的调用来提供解决方案，以帮助分析系统的总体结构和内部模块之间如何相互联系。&lt;/p>
+&lt;blockquote>
+&lt;p>注：对于各个模块之间的通讯英文原文中用的是transaction一词，但是我觉得如果翻译为&amp;quot;事务&amp;quot;容易引起误解，所以替换为&amp;quot;交互&amp;quot;或者&amp;quot;调用&amp;quot;这种比较直白的字眼。&lt;/p>
+&lt;/blockquote>
+&lt;p>在使用上力图简单高效：&lt;/p>
+&lt;ul>
+&lt;li>安装agent，不需要修改哪怕一行代码&lt;/li>
+&lt;li>最小化性能损失&lt;/li>
+&lt;/ul>
+&lt;h3 id="服务器地图servermap">服务器地图(ServerMap)&lt;/h3>
+&lt;p>通过可视化分布式系统的模块和他们之间的相互联系来理解系统拓扑。点击某个节点会展示这个模块的详情，比如它当前的状态和请求数量。&lt;/p>
+&lt;h3 id="实时活动线程图表realtime-active-thread-chart">实时活动线程图表(Realtime Active Thread Chart)&lt;/h3>
+&lt;p>实时监控应用内部的活动线程。&lt;/p>
+&lt;h3 id="请求应答分布图表requestresponse-scatter-chart">请求/应答分布图表(Request/Response Scatter Chart)&lt;/h3>
+&lt;p>长期可视化请求数量和应答模式来定位潜在问题。通过在图表上拉拽可以选择请求查看更多的详细信息。&lt;/p>
+&lt;h3 id="调用栈callstack">调用栈(CallStack)&lt;/h3>
+&lt;p>在分布式环境中为每个调用生成代码级别的可视图，在单个视图中定位瓶颈和失败点。&lt;/p>
+&lt;h3 id="巡查inspector">巡查(Inspector)&lt;/h3>
+&lt;p>查看应用上的其他详细信息，比如CPU使用率，内存/垃圾回收，TPS，和JVM参数。&lt;/p>
+&lt;h3 id="支持模块">支持模块&lt;/h3>
+&lt;ul>
+&lt;li>JDK 6+&lt;/li>
+&lt;li>Tomcat 6/7/8, Jetty 8/9, JBoss EAP 6, Resin 4, Websphere 6/7/8, Vertx 3.3/3.4/3.5&lt;/li>
+&lt;li>Spring, Spring Boot (Embedded Tomcat, Jetty)&lt;/li>
+&lt;li>Apache HTTP Client 3.x/4.x, JDK HttpConnector, GoogleHttpClient, OkHttpClient, NingAsyncHttpClient&lt;/li>
+&lt;li>Thrift Client, Thrift Service, DUBBO PROVIDER, DUBBO CONSUMER&lt;/li>
+&lt;li>ActiveMQ, RabbitMQ&lt;/li>
+&lt;li>MySQL, Oracle, MSSQL, CUBRID,POSTGRESQL, MARIA&lt;/li>
+&lt;li>Arcus, Memcached, Redis, CASSANDRA&lt;/li>
+&lt;li>iBATIS, MyBatis&lt;/li>
+&lt;li>DBCP, DBCP2, HIKARICP&lt;/li>
+&lt;li>gson, Jackson, Json Lib&lt;/li>
+&lt;li>log4j, Logback&lt;/li>
+&lt;li>自定义模块&lt;/li>
+&lt;/ul>
+&lt;h2 id="pinpoint与dubbo的结合">Pinpoint与Dubbo的结合&lt;/h2>
+&lt;h3 id="启动pinpoint">启动Pinpoint&lt;/h3>
+&lt;p>参考Pinpoint的&lt;a href="http://naver.github.io/pinpoint/quickstart.html">Quick start&lt;/a>搭建环境（不需要启动TestApp）&lt;/p>
+&lt;h3 id="准备dubbo示例程序">准备Dubbo示例程序&lt;/h3>
+&lt;h4 id="创建api包">创建API包&lt;/h4>
+&lt;p>pom.xml&lt;/p>
+&lt;div class="highlight">&lt;pre style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-xml" data-lang="xml">&lt;span style="color:#8f5902;font-style:italic">&amp;lt;?xml version=&amp;#34;1.0&amp;#34; encoding=&amp;#34;UTF-8&amp;#34;?&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;project&lt;/span> &lt;span style="color:#c4a000">xmlns=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;http://maven.apache.org/POM/4.0.0&amp;#34;&lt;/span>
+&lt;span style="color:#c4a000">xmlns:xsi=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;http://www.w3.org/2001/XMLSchema-instance&amp;#34;&lt;/span>
+&lt;span style="color:#c4a000">xsi:schemaLocation=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd&amp;#34;&lt;/span>&lt;span style="color:#204a87;font-weight:bold">&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;modelVersion&amp;gt;&lt;/span>4.0.0&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/modelVersion&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;groupId&amp;gt;&lt;/span>com.example&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/groupId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;artifactId&amp;gt;&lt;/span>demo-api&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/artifactId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;version&amp;gt;&lt;/span>0.0.1-SNAPSHOT&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/version&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/project&amp;gt;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>新建API接口：&lt;/p>
+&lt;pre>&lt;code>package com.example.demoapi;
+public interface HelloService {
+String sayHello(String name);
+}
+&lt;/code>&lt;/pre>&lt;h4 id="实现-dubbo-服务提供方">实现 Dubbo 服务提供方&lt;/h4>
+&lt;p>pom.xml&lt;/p>
+&lt;div class="highlight">&lt;pre style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-xml" data-lang="xml">&lt;span style="color:#8f5902;font-style:italic">&amp;lt;?xml version=&amp;#34;1.0&amp;#34; encoding=&amp;#34;UTF-8&amp;#34;?&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;project&lt;/span> &lt;span style="color:#c4a000">xmlns=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;http://maven.apache.org/POM/4.0.0&amp;#34;&lt;/span> &lt;span style="color:#c4a000">xmlns:xsi=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;http://www.w3.org/2001/XMLSchema-instance&amp;#34;&lt;/span>
+&lt;span style="color:#c4a000">xsi:schemaLocation=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd&amp;#34;&lt;/span>&lt;span style="color:#204a87;font-weight:bold">&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;modelVersion&amp;gt;&lt;/span>4.0.0&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/modelVersion&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;groupId&amp;gt;&lt;/span>com.example&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/groupId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;artifactId&amp;gt;&lt;/span>demo-provider&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/artifactId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;version&amp;gt;&lt;/span>0.0.1-SNAPSHOT&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/version&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;packaging&amp;gt;&lt;/span>jar&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/packaging&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;name&amp;gt;&lt;/span>demo-provider&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/name&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;parent&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;groupId&amp;gt;&lt;/span>org.springframework.boot&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/groupId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;artifactId&amp;gt;&lt;/span>spring-boot-starter-parent&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/artifactId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;version&amp;gt;&lt;/span>2.0.3.RELEASE&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/version&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;relativePath/&amp;gt;&lt;/span> &lt;span style="color:#8f5902;font-style:italic">&amp;lt;!-- lookup parent from repository --&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/parent&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;properties&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;project.build.sourceEncoding&amp;gt;&lt;/span>UTF-8&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/project.build.sourceEncoding&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;project.reporting.outputEncoding&amp;gt;&lt;/span>UTF-8&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/project.reporting.outputEncoding&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;java.version&amp;gt;&lt;/span>1.8&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/java.version&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/properties&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;repositories&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;repository&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;id&amp;gt;&lt;/span>sonatype-nexus-snapshots&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/id&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;url&amp;gt;&lt;/span>https://oss.sonatype.org/content/repositories/snapshots&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/url&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;releases&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;enabled&amp;gt;&lt;/span>false&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/enabled&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/releases&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;snapshots&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;enabled&amp;gt;&lt;/span>true&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/enabled&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/snapshots&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/repository&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/repositories&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;dependencies&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;dependency&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;groupId&amp;gt;&lt;/span>org.springframework.boot&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/groupId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;artifactId&amp;gt;&lt;/span>spring-boot-starter&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/artifactId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/dependency&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;dependency&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;groupId&amp;gt;&lt;/span>com.alibaba.boot&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/groupId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;artifactId&amp;gt;&lt;/span>dubbo-spring-boot-starter&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/artifactId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;version&amp;gt;&lt;/span>0.2.0&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/version&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/dependency&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;dependency&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;groupId&amp;gt;&lt;/span>com.example&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/groupId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;artifactId&amp;gt;&lt;/span>demo-api&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/artifactId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;version&amp;gt;&lt;/span>0.0.1-SNAPSHOT&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/version&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/dependency&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;dependency&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;groupId&amp;gt;&lt;/span>org.springframework.boot&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/groupId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;artifactId&amp;gt;&lt;/span>spring-boot-starter-test&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/artifactId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;scope&amp;gt;&lt;/span>test&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/scope&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/dependency&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/dependencies&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;build&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;plugins&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;plugin&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;groupId&amp;gt;&lt;/span>org.springframework.boot&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/groupId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;artifactId&amp;gt;&lt;/span>spring-boot-maven-plugin&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/artifactId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/plugin&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/plugins&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/build&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/project&amp;gt;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;ol>
+&lt;li>实现 &lt;code>HelloService&lt;/code> 接口：&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-java" data-lang="java">&lt;span style="color:#204a87;font-weight:bold">package&lt;/span> &lt;span style="color:#000">com.example.demoprovider.provider&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">import&lt;/span> &lt;span style="color:#000">com.alibaba.dubbo.config.annotation.Service&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">import&lt;/span> &lt;span style="color:#000">com.example.demoapi.HelloService&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#5c35cc;font-weight:bold">@Service&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">version&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#4e9a06">&amp;#34;${demo.service.version}&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">,&lt;/span>
+&lt;span style="color:#000">application&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#4e9a06">&amp;#34;${dubbo.application.id}&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">,&lt;/span>
+&lt;span style="color:#000">protocol&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#4e9a06">&amp;#34;${dubbo.protocol.id}&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">,&lt;/span>
+&lt;span style="color:#000">registry&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#4e9a06">&amp;#34;${dubbo.registry.id}&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">)&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">public&lt;/span> &lt;span style="color:#204a87;font-weight:bold">class&lt;/span> &lt;span style="color:#000">HelloServiceImpl&lt;/span> &lt;span style="color:#204a87;font-weight:bold">implements&lt;/span> &lt;span style="color:#000">HelloService&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">{&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">static&lt;/span> &lt;span style="color:#204a87;font-weight:bold">int&lt;/span> &lt;span style="color:#000">i&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#000">0&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#5c35cc;font-weight:bold">@Override&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">public&lt;/span> &lt;span style="color:#000">String&lt;/span> &lt;span style="color:#000">sayHello&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">String&lt;/span> &lt;span style="color:#000">name&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">)&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">{&lt;/span>
+&lt;span style="color:#000">i&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">++;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">if&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">i&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">%&lt;/span> &lt;span style="color:#000">3&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">==&lt;/span> &lt;span style="color:#000">0&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">)&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">{&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">throw&lt;/span> &lt;span style="color:#204a87;font-weight:bold">new&lt;/span> &lt;span style="color:#000">RuntimeException&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;ex&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">);&lt;/span>
+&lt;span style="color:#ce5c00;font-weight:bold">}&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">return&lt;/span> &lt;span style="color:#4e9a06">&amp;#34;Hello &amp;#34;&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">+&lt;/span> &lt;span style="color:#000">name&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">+&lt;/span> &lt;span style="color:#4e9a06">&amp;#34;!&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#ce5c00;font-weight:bold">}&lt;/span>
+&lt;span style="color:#ce5c00;font-weight:bold">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;ol start="2">
+&lt;li>编写 Spring Boot 引导程序：&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-java" data-lang="java">&lt;span style="color:#204a87;font-weight:bold">package&lt;/span> &lt;span style="color:#000">com.example.demoprovider&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">import&lt;/span> &lt;span style="color:#000">org.springframework.boot.SpringApplication&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">import&lt;/span> &lt;span style="color:#000">org.springframework.boot.autoconfigure.SpringBootApplication&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#5c35cc;font-weight:bold">@SpringBootApplication&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">public&lt;/span> &lt;span style="color:#204a87;font-weight:bold">class&lt;/span> &lt;span style="color:#000">DemoProviderApplication&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">{&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">public&lt;/span> &lt;span style="color:#204a87;font-weight:bold">static&lt;/span> &lt;span style="color:#204a87;font-weight:bold">void&lt;/span> &lt;span style="color:#000">main&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">String&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">[]&lt;/span> &lt;span style="color:#000">args&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">)&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">{&lt;/span>
+&lt;span style="color:#000">SpringApplication&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">run&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">DemoProviderApplication&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">class&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">,&lt;/span> &lt;span style="color:#000">args&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">);&lt;/span>
+&lt;span style="color:#ce5c00;font-weight:bold">}&lt;/span>
+&lt;span style="color:#ce5c00;font-weight:bold">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;ol start="3">
+&lt;li>配置 &lt;code>application.properties&lt;/code>：&lt;/li>
+&lt;/ol>
+&lt;pre>&lt;code class="language-properties" data-lang="properties"># Spring boot application
+spring.application.name = dubbo-provider-demo
+server.port = 9090
+management.port = 9091
+# Service version
+demo.service.version = 1.0.0
+# Base packages to scan Dubbo Components (e.g @Service , @Reference)
+dubbo.scan.basePackages = com.example.demoprovider
+# Dubbo Config properties
+## ApplicationConfig Bean
+dubbo.application.id = dubbo-provider-demo
+dubbo.application.name = dubbo-provider-demo
+## ProtocolConfig Bean
+dubbo.protocol.id = dubbo
+dubbo.protocol.name = dubbo
+dubbo.protocol.port = 12345
+## RegistryConfig Bean
+dubbo.registry.id = my-registry
+dubbo.registry.address = N/A
+&lt;/code>&lt;/pre>&lt;h4 id="实现-dubbo-服务消费方">实现 Dubbo 服务消费方&lt;/h4>
+&lt;p>pom.xml&lt;/p>
+&lt;div class="highlight">&lt;pre style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-xml" data-lang="xml">&lt;span style="color:#8f5902;font-style:italic">&amp;lt;?xml version=&amp;#34;1.0&amp;#34; encoding=&amp;#34;UTF-8&amp;#34;?&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;project&lt;/span> &lt;span style="color:#c4a000">xmlns=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;http://maven.apache.org/POM/4.0.0&amp;#34;&lt;/span> &lt;span style="color:#c4a000">xmlns:xsi=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;http://www.w3.org/2001/XMLSchema-instance&amp;#34;&lt;/span>
+&lt;span style="color:#c4a000">xsi:schemaLocation=&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd&amp;#34;&lt;/span>&lt;span style="color:#204a87;font-weight:bold">&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;modelVersion&amp;gt;&lt;/span>4.0.0&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/modelVersion&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;groupId&amp;gt;&lt;/span>com.example&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/groupId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;artifactId&amp;gt;&lt;/span>demo-consumer&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/artifactId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;version&amp;gt;&lt;/span>0.0.1-SNAPSHOT&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/version&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;packaging&amp;gt;&lt;/span>jar&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/packaging&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;name&amp;gt;&lt;/span>demo-consumer&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/name&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;parent&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;groupId&amp;gt;&lt;/span>org.springframework.boot&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/groupId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;artifactId&amp;gt;&lt;/span>spring-boot-starter-parent&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/artifactId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;version&amp;gt;&lt;/span>2.0.3.RELEASE&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/version&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;relativePath/&amp;gt;&lt;/span> &lt;span style="color:#8f5902;font-style:italic">&amp;lt;!-- lookup parent from repository --&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/parent&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;properties&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;project.build.sourceEncoding&amp;gt;&lt;/span>UTF-8&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/project.build.sourceEncoding&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;project.reporting.outputEncoding&amp;gt;&lt;/span>UTF-8&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/project.reporting.outputEncoding&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;java.version&amp;gt;&lt;/span>1.8&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/java.version&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/properties&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;repositories&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;repository&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;id&amp;gt;&lt;/span>sonatype-nexus-snapshots&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/id&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;url&amp;gt;&lt;/span>https://oss.sonatype.org/content/repositories/snapshots&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/url&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;releases&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;enabled&amp;gt;&lt;/span>false&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/enabled&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/releases&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;snapshots&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;enabled&amp;gt;&lt;/span>true&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/enabled&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/snapshots&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/repository&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/repositories&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;dependencies&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;dependency&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;groupId&amp;gt;&lt;/span>org.springframework.boot&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/groupId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;artifactId&amp;gt;&lt;/span>spring-boot-starter-web&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/artifactId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/dependency&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;dependency&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;groupId&amp;gt;&lt;/span>com.alibaba.boot&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/groupId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;artifactId&amp;gt;&lt;/span>dubbo-spring-boot-starter&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/artifactId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;version&amp;gt;&lt;/span>0.2.0&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/version&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/dependency&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;dependency&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;groupId&amp;gt;&lt;/span>com.example&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/groupId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;artifactId&amp;gt;&lt;/span>demo-api&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/artifactId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;version&amp;gt;&lt;/span>0.0.1-SNAPSHOT&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/version&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/dependency&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;dependency&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;groupId&amp;gt;&lt;/span>org.springframework.boot&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/groupId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;artifactId&amp;gt;&lt;/span>spring-boot-starter-test&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/artifactId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;scope&amp;gt;&lt;/span>test&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/scope&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/dependency&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/dependencies&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;build&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;plugins&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;plugin&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;groupId&amp;gt;&lt;/span>org.springframework.boot&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/groupId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;artifactId&amp;gt;&lt;/span>spring-boot-maven-plugin&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/artifactId&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;configuration&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;classifier&amp;gt;&lt;/span>exec&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/classifier&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/configuration&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/plugin&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/plugins&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/build&amp;gt;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">&amp;lt;/project&amp;gt;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;ol>
+&lt;li>通过 &lt;code>@Reference&lt;/code> 注入 &lt;code>HelloService&lt;/code>&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-java" data-lang="java">&lt;span style="color:#204a87;font-weight:bold">package&lt;/span> &lt;span style="color:#000">com.example.democonsumer.controller&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">import&lt;/span> &lt;span style="color:#000">com.alibaba.dubbo.config.annotation.Reference&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">import&lt;/span> &lt;span style="color:#000">com.example.demoapi.HelloService&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">import&lt;/span> &lt;span style="color:#000">org.springframework.web.bind.annotation.RequestMapping&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">import&lt;/span> &lt;span style="color:#000">org.springframework.web.bind.annotation.RequestParam&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">import&lt;/span> &lt;span style="color:#000">org.springframework.web.bind.annotation.RestController&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#5c35cc;font-weight:bold">@RestController&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">public&lt;/span> &lt;span style="color:#204a87;font-weight:bold">class&lt;/span> &lt;span style="color:#000">DemoConsumerController&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">{&lt;/span>
+&lt;span style="color:#5c35cc;font-weight:bold">@Reference&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">version&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#4e9a06">&amp;#34;${demo.service.version}&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">,&lt;/span>
+&lt;span style="color:#000">application&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#4e9a06">&amp;#34;${dubbo.application.id}&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">,&lt;/span>
+&lt;span style="color:#000">url&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">=&lt;/span> &lt;span style="color:#4e9a06">&amp;#34;dubbo://&amp;lt;注意，这里填写具体IP&amp;gt;:12345&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">)&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">private&lt;/span> &lt;span style="color:#000">HelloService&lt;/span> &lt;span style="color:#000">helloService&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#5c35cc;font-weight:bold">@RequestMapping&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#4e9a06">&amp;#34;/sayHello&amp;#34;&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">)&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">public&lt;/span> &lt;span style="color:#000">String&lt;/span> &lt;span style="color:#000">sayHello&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#5c35cc;font-weight:bold">@RequestParam&lt;/span> &lt;span style="color:#000">String&lt;/span> &lt;span style="color:#000">name&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">)&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">{&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">return&lt;/span> &lt;span style="color:#000">helloService&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">sayHello&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">name&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">);&lt;/span>
+&lt;span style="color:#ce5c00;font-weight:bold">}&lt;/span>
+&lt;span style="color:#ce5c00;font-weight:bold">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;blockquote>
+&lt;p>直连提供者调用需要填写具体IP地址，如果写localhost也可以，但是会被Pinpoint额外识别为一个未知服务&lt;/p>
+&lt;/blockquote>
+&lt;ol start="2">
+&lt;li>编写 Spring Boot 引导程序（Web 应用）：&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;pre style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-java" data-lang="java">&lt;span style="color:#204a87;font-weight:bold">package&lt;/span> &lt;span style="color:#000">com.example.democonsumer&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">import&lt;/span> &lt;span style="color:#000">org.springframework.boot.SpringApplication&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">import&lt;/span> &lt;span style="color:#000">org.springframework.boot.autoconfigure.SpringBootApplication&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">;&lt;/span>
+&lt;span style="color:#5c35cc;font-weight:bold">@SpringBootApplication&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">public&lt;/span> &lt;span style="color:#204a87;font-weight:bold">class&lt;/span> &lt;span style="color:#000">DemoConsumerApplication&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">{&lt;/span>
+&lt;span style="color:#204a87;font-weight:bold">public&lt;/span> &lt;span style="color:#204a87;font-weight:bold">static&lt;/span> &lt;span style="color:#204a87;font-weight:bold">void&lt;/span> &lt;span style="color:#000">main&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">String&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">[]&lt;/span> &lt;span style="color:#000">args&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">)&lt;/span> &lt;span style="color:#ce5c00;font-weight:bold">{&lt;/span>
+&lt;span style="color:#000">SpringApplication&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">run&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">(&lt;/span>&lt;span style="color:#000">DemoConsumerApplication&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">.&lt;/span>&lt;span style="color:#c4a000">class&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">,&lt;/span> &lt;span style="color:#000">args&lt;/span>&lt;span style="color:#ce5c00;font-weight:bold">);&lt;/span>
+&lt;span style="color:#ce5c00;font-weight:bold">}&lt;/span>
+&lt;span style="color:#ce5c00;font-weight:bold">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;ol start="3">
+&lt;li>配置 &lt;code>application.properties&lt;/code>：&lt;/li>
+&lt;/ol>
+&lt;pre>&lt;code class="language-properties" data-lang="properties"># Spring boot application
+spring.application.name=dubbo-consumer-demo
+server.port=8080
+management.port=8081
+# Service Version
+demo.service.version=1.0.0
+# Dubbo Config properties
+## ApplicationConfig Bean
+dubbo.application.id=dubbo-consumer-demo
+dubbo.application.name=dubbo-consumer-demo
+## ProtocolConfig Bean
+dubbo.protocol.id=dubbo
+dubbo.protocol.name=dubbo
+dubbo.protocol.port=12345
+&lt;/code>&lt;/pre>&lt;h3 id="使用pinpoint-agent启动服务提供方和服务消费方">使用Pinpoint-agent启动服务提供方和服务消费方&lt;/h3>
+&lt;h4 id="启动服务提供方">启动服务提供方&lt;/h4>
+&lt;ol>
+&lt;li>编译打包&lt;/li>
+&lt;/ol>
+&lt;pre>&lt;code>mvn clean package
+&lt;/code>&lt;/pre>&lt;ol start="2">
+&lt;li>附加参数启动服务提供方&lt;/li>
+&lt;/ol>
+&lt;pre>&lt;code>java -jar -javaagent:$AGENT_PATH/pinpoint-bootstrap-$VERSION.jar -Dpinpoint.agentId=demo-provider -Dpinpoint.applicationName=DP target/demo-provider-0.0.1-SNAPSHOT.jar
+&lt;/code>&lt;/pre>&lt;ol start="3">
+&lt;li>附加参数启动服务消费方&lt;/li>
+&lt;/ol>
+&lt;pre>&lt;code>java -jar -javaagent:$AGENT_PATH/pinpoint-bootstrap-$VERSION.jar -Dpinpoint.agentId=demo-consumer -Dpinpoint.applicationName=DC target/demo-comsumer-0.0.1-SNAPSHOT-exec.jar
+&lt;/code>&lt;/pre>&lt;ol start="4">
+&lt;li>访问消费方地址模拟用户请求&lt;/li>
+&lt;/ol>
+&lt;p>&lt;code>http://localhost:8080/sayHello?name=ABC&lt;/code>&lt;/p>
+&lt;h2 id="使用pinpoint快速定位问题">使用Pinpoint快速定位问题&lt;/h2>
+&lt;h3 id="首页">首页&lt;/h3>
+&lt;p>&lt;img src="/imgs/blog/pinpoint-home.png" alt="/admin-guide/images/pinpoint-home.png">&lt;/p>
+&lt;blockquote>
+&lt;p>这里的用户请求是请求DubboProvider数量的双倍，原因是记录了favicon.ico图标请求导致的&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="调用树">调用树&lt;/h3>
+&lt;p>&lt;img src="/imgs/blog/pinpoint-calltree.png" alt="/admin-guide/images/pinpoint-calltree.png">&lt;/p>
+&lt;h3 id="深入跟踪">深入跟踪&lt;/h3>
+&lt;p>&lt;img src="/imgs/blog/pinpoint-mixedview.png" alt="/admin-guide/images/pinpoint-mixedview.png">&lt;/p>
+&lt;h3 id="其他">其他&lt;/h3>
+&lt;p>示例简单的模拟了Dubbo的提供和调用，并没有进行数据库等其他中间件的应用，详细使用请参照Pinpoint文档。&lt;/p></description></item></channel></rss>
